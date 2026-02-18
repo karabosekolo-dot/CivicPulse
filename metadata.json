@@ -1,0 +1,8 @@
+{
+  "name": "CivicPulse: Community Voice",
+  "description": "A transparent community platform for reporting infrastructure, safety, and civic issues to improve accountability and local living standards.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
+}
