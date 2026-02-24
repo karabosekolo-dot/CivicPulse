@@ -11,6 +11,9 @@ import { IssueCard } from './components/IssueCard';
 import { ReportingForm } from './components/ReportingForm';
 import { IssueDetails } from './components/IssueDetails';
 import { Button } from './components/Button';
+import { AuthProvider, useAuth } from './services/authContext';
+import { AuthModal } from './components/AuthModal';
+import { LogOut, User as UserIcon, LogIn } from 'lucide-react';
 
 const INITIAL_ISSUES: CivicIssue[] = [
   {
@@ -33,7 +36,8 @@ const INITIAL_ISSUES: CivicIssue[] = [
         timestamp: new Date(Date.now() - 86400000).toISOString(),
         author: 'Admin'
       }
-    ]
+    ],
+    recommendedAction: 'Immediately cordon off the area and schedule emergency asphalt repair to prevent vehicle damage.'
   },
   {
     id: '2',
@@ -47,7 +51,8 @@ const INITIAL_ISSUES: CivicIssue[] = [
     reporterName: 'Sarah Smith',
     timestamp: new Date(Date.now() - 3600000 * 4).toISOString(),
     upvotes: 128,
-    updates: []
+    updates: [],
+    recommendedAction: 'Shut off the local water valve and dispatch a utility crew for pipe replacement.'
   },
   {
     id: '3',
@@ -73,12 +78,16 @@ const INITIAL_ISSUES: CivicIssue[] = [
   }
 ];
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
   const [issues, setIssues] = useState<CivicIssue[]>(INITIAL_ISSUES);
   const [isReporting, setIsReporting] = useState(false);
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
-  const [filter, setFilter] = useState<IssueCategory | 'All'>('All');
+  const [filter, setFilter] = useState<IssueCategory | 'All' | 'My Reports'>('All');
   const [searchTerm, setSearchTerm] = useState('');
+  const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  
+  const { user, logout, isAuthenticated } = useAuth();
 
   const selectedIssue = useMemo(() => 
     issues.find(i => i.id === selectedIssueId) || null
@@ -86,17 +95,24 @@ const App: React.FC = () => {
 
   const filteredIssues = useMemo(() => {
     return issues.filter(issue => {
-      const matchesFilter = filter === 'All' || issue.category === filter;
+      let matchesFilter = true;
+      if (filter === 'My Reports') {
+        matchesFilter = issue.reporterId === user?.id;
+      } else if (filter !== 'All') {
+        matchesFilter = issue.category === filter;
+      }
+      
       const matchesSearch = issue.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           issue.description.toLowerCase().includes(searchTerm.toLowerCase());
       return matchesFilter && matchesSearch;
     }).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-  }, [issues, filter, searchTerm]);
+  }, [issues, filter, searchTerm, user?.id]);
 
   const handleReportSubmit = (data: any) => {
     const newIssue: CivicIssue = {
       id: Math.random().toString(36).substr(2, 9),
       ...data,
+      reporterId: user?.id,
       status: IssueStatus.OPEN,
       timestamp: new Date().toISOString(),
       upvotes: 1,
@@ -106,13 +122,23 @@ const App: React.FC = () => {
     setIsReporting(false);
   };
 
+  const handleReportClick = () => {
+    if (!isAuthenticated) {
+      setAuthMode('login');
+      setShowAuthModal(true);
+    } else {
+      setIsReporting(true);
+    }
+  };
+
   const handleAddUpdate = (issueId: string, updateData: Omit<IssueUpdate, 'id' | 'timestamp' | 'author'>) => {
     setIssues(prev => prev.map(issue => {
       if (issue.id === issueId) {
         const newUpdate: IssueUpdate = {
           id: `u-${Date.now()}`,
           timestamp: new Date().toISOString(),
-          author: 'Citizen Follow-up',
+          author: user?.name || 'Citizen Follow-up',
+          authorId: user?.id,
           ...updateData
         };
         return {
@@ -162,12 +188,36 @@ const App: React.FC = () => {
             />
           </div>
 
-          <Button variant="primary" onClick={() => setIsReporting(true)}>
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            Report Issue
-          </Button>
+          <div className="flex items-center gap-4">
+            {isAuthenticated ? (
+              <div className="flex items-center gap-3">
+                <div className="hidden md:block text-right">
+                  <p className="text-xs font-black text-slate-900 leading-none">{user?.name}</p>
+                  <button onClick={logout} className="text-[10px] font-bold text-slate-400 hover:text-red-500 transition-colors uppercase tracking-widest">Sign Out</button>
+                </div>
+                <div className="h-10 w-10 rounded-full border-2 border-indigo-100 overflow-hidden bg-slate-100">
+                  <img src={user?.avatarUrl} alt={user?.name} className="h-full w-full object-cover" />
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={() => { setAuthMode('login'); setShowAuthModal(true); }}>
+                  <LogIn className="h-4 w-4 mr-2" />
+                  Sign In
+                </Button>
+                <Button variant="secondary" className="bg-slate-800 hover:bg-slate-900 text-white" onClick={() => { setAuthMode('register'); setShowAuthModal(true); }}>
+                  Sign Up
+                </Button>
+              </div>
+            )}
+
+            <Button variant="primary" onClick={handleReportClick}>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Report Issue
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -208,6 +258,14 @@ const App: React.FC = () => {
                 >
                   All Issues
                 </button>
+                {isAuthenticated && (
+                  <button 
+                    className={`w-full text-left px-4 py-2 rounded-lg text-sm font-medium transition-colors ${filter === 'My Reports' ? 'bg-indigo-600 text-white shadow-sm' : 'hover:bg-slate-100 text-slate-600'}`}
+                    onClick={() => setFilter('My Reports')}
+                  >
+                    My Reports
+                  </button>
+                )}
                 {Object.values(IssueCategory).map(cat => (
                   <button 
                     key={cat}
@@ -234,7 +292,7 @@ const App: React.FC = () => {
           <div className="flex-1">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-2xl font-black text-slate-900">
-                {filter === 'All' ? 'Community Feed' : filter}
+                {filter === 'All' ? 'Community Feed' : filter === 'My Reports' ? 'My Reported Issues' : filter}
               </h2>
               <span className="text-sm text-slate-500 font-medium">Showing {filteredIssues.length} reports</span>
             </div>
@@ -300,7 +358,22 @@ const App: React.FC = () => {
           onAddUpdate={handleAddUpdate}
         />
       )}
+      
+      {showAuthModal && (
+        <AuthModal 
+          initialMode={authMode} 
+          onClose={() => setShowAuthModal(false)} 
+        />
+      )}
     </div>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 };
 

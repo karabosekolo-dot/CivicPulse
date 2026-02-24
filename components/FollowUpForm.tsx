@@ -1,7 +1,8 @@
 
 import React, { useState, useRef } from 'react';
-import { IssueStatus, IssueUpdate } from '../types';
+import { IssueStatus, IssueUpdate, MediaItem } from '../types';
 import { Button } from './Button';
+import { X, Plus, Video } from 'lucide-react';
 
 interface FollowUpFormProps {
   issueId: string;
@@ -13,24 +14,36 @@ interface FollowUpFormProps {
 export const FollowUpForm: React.FC<FollowUpFormProps> = ({ issueId, initialStatus, onClose, onSubmit }) => {
   const [comment, setComment] = useState('');
   const [status, setStatus] = useState<IssueStatus>(initialStatus);
-  const [image, setImage] = useState<string | null>(null);
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImage(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      Array.from(files).forEach((file: File) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const type = file.type.startsWith('video/') ? 'video' : 'image';
+          setMediaItems(prev => [...prev, { url: reader.result as string, type }]);
+        };
+        reader.readAsDataURL(file);
+      });
     }
+  };
+
+  const removeMedia = (index: number) => {
+    setMediaItems(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!comment.trim()) return;
-    onSubmit({ comment, status, imageUrl: image || undefined });
+    onSubmit({ 
+      comment, 
+      status, 
+      imageUrl: mediaItems.find(m => m.type === 'image')?.url,
+      media: mediaItems 
+    });
   };
 
   return (
@@ -64,44 +77,47 @@ export const FollowUpForm: React.FC<FollowUpFormProps> = ({ issueId, initialStat
 
           <div>
             <label className="block text-sm font-bold text-slate-700 mb-2">Visual Evidence (Optional)</label>
-            <div 
-              className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center hover:border-indigo-400 hover:bg-slate-50 transition-all cursor-pointer"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              {image ? (
-                <div className="relative group">
-                  <img src={image} alt="Follow-up Evidence" className="h-36 mx-auto rounded-lg object-cover shadow-sm" />
-                  <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
-                    <span className="text-white text-xs font-bold bg-slate-900/50 px-2 py-1 rounded">Change Photo</span>
-                  </div>
+            <div className="grid grid-cols-3 gap-3 mb-3">
+              {mediaItems.map((item, index) => (
+                <div key={index} className="relative aspect-square rounded-xl overflow-hidden border border-slate-200 group">
+                  {item.type === 'image' ? (
+                    <img src={item.url} alt="Preview" className="w-full h-full object-cover" />
+                  ) : (
+                    <video src={item.url} className="w-full h-full object-cover" />
+                  )}
                   <button 
                     type="button"
-                    onClick={(e) => { e.stopPropagation(); setImage(null); }}
-                    className="absolute -top-2 -right-2 bg-red-500 text-white p-1 rounded-full shadow-lg hover:bg-red-600 transition-colors"
+                    onClick={() => removeMedia(index)}
+                    className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
+                    <X className="h-3 w-3" />
                   </button>
+                  {item.type === 'video' && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <Video className="h-6 w-6 text-white drop-shadow-md" />
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="flex flex-col items-center py-2 text-slate-400">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  <span className="text-xs font-medium">Click to snap or upload new evidence</span>
-                </div>
+              ))}
+              {mediaItems.length < 3 && (
+                <button 
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="aspect-square border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:border-indigo-400 hover:text-indigo-400 transition-all"
+                >
+                  <Plus className="h-6 w-6 mb-1" />
+                  <span className="text-[10px] font-bold uppercase">Add</span>
+                </button>
               )}
-              <input 
-                type="file" 
-                accept="image/*" 
-                capture="environment" 
-                ref={fileInputRef} 
-                className="hidden" 
-                onChange={handleImageChange}
-              />
             </div>
+            <input 
+              type="file" 
+              multiple
+              accept="image/*,video/*" 
+              ref={fileInputRef} 
+              className="hidden" 
+              onChange={handleFileChange}
+            />
           </div>
 
           <div>

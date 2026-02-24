@@ -3,6 +3,7 @@ import React, { useState, useMemo, useRef } from 'react';
 import { CivicIssue, IssueStatus, IssueUpdate } from '../types';
 import { Button } from './Button';
 import { FollowUpForm } from './FollowUpForm';
+import { useAuth } from '../services/authContext';
 
 interface IssueDetailsProps {
   issue: CivicIssue;
@@ -77,6 +78,9 @@ export const IssueDetails: React.FC<IssueDetailsProps> = ({ issue, onClose, onAd
   const [quickPhoto, setQuickPhoto] = useState<string | null>(null);
   const [quickComment, setQuickComment] = useState('');
   const [isQuickSnapping, setIsQuickSnapping] = useState(false);
+  const [showResolvePrompt, setShowResolvePrompt] = useState(false);
+  const [resolveComment, setResolveComment] = useState('');
+  const { isAuthenticated } = useAuth();
   const quickFileInputRef = useRef<HTMLInputElement>(null);
 
   const filteredAndSortedUpdates = useMemo(() => {
@@ -94,6 +98,29 @@ export const IssueDetails: React.FC<IssueDetailsProps> = ({ issue, onClose, onAd
 
     return updates;
   }, [issue.updates, statusFilter, sortOrder]);
+
+  const statusHistory = useMemo(() => {
+    const history: { oldStatus: IssueStatus; newStatus: IssueStatus; author: string; timestamp: string }[] = [];
+    let currentStatus = IssueStatus.OPEN;
+
+    const sortedUpdates = [...issue.updates].sort((a, b) => 
+      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+    );
+
+    sortedUpdates.forEach(update => {
+      if (update.status !== currentStatus) {
+        history.push({
+          oldStatus: currentStatus,
+          newStatus: update.status,
+          author: update.author,
+          timestamp: update.timestamp
+        });
+        currentStatus = update.status;
+      }
+    });
+
+    return history.reverse();
+  }, [issue.updates]);
 
   const handleQuickSnap = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -117,6 +144,14 @@ export const IssueDetails: React.FC<IssueDetailsProps> = ({ issue, onClose, onAd
     setQuickPhoto(null);
     setQuickComment('');
     setIsQuickSnapping(false);
+  };
+
+  const handleAddUpdateClick = () => {
+    if (!isAuthenticated) {
+      alert("Please sign in to add a follow-up report.");
+      return;
+    }
+    setShowFollowUp(true);
   };
 
   const handleShare = async () => {
@@ -196,19 +231,87 @@ export const IssueDetails: React.FC<IssueDetailsProps> = ({ issue, onClose, onAd
               </div>
             </div>
             
-            {issue.imageUrl && (
+            {((issue.media && issue.media.length > 0) || issue.imageUrl) && (
               <div className="rounded-2xl overflow-hidden border border-slate-200 shadow-md bg-white p-1">
-                <img src={issue.imageUrl} alt="Initial Evidence" className="w-full h-full object-cover max-h-[300px] rounded-xl" />
+                <div className="grid grid-cols-1 gap-2">
+                  {issue.imageUrl && !issue.media?.some(m => m.url === issue.imageUrl) && (
+                    <img src={issue.imageUrl} alt="Initial Evidence" className="w-full h-full object-cover max-h-[300px] rounded-xl" />
+                  )}
+                  {issue.media?.map((item, idx) => (
+                    <div key={idx} className="rounded-xl overflow-hidden">
+                      {item.type === 'image' ? (
+                        <img src={item.url} alt={`Evidence ${idx + 1}`} className="w-full h-auto object-cover max-h-[400px]" />
+                      ) : (
+                        <video src={item.url} controls className="w-full h-auto max-h-[400px]" />
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>
+
+          {issue.recommendedAction && (
+            <div className="mb-10 bg-indigo-50 border border-indigo-100 p-6 rounded-2xl">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="bg-indigo-600 p-1.5 rounded-lg shadow-sm">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <h3 className="text-sm font-black text-indigo-900 uppercase tracking-widest">AI Recommended Action</h3>
+              </div>
+              <p className="text-sm text-indigo-800 font-medium leading-relaxed italic">
+                "{issue.recommendedAction}"
+              </p>
+            </div>
+          )}
+
+          {statusHistory.length > 0 && (
+            <div className="mb-10">
+              <div className="flex items-center gap-2 mb-6">
+                <div className="bg-slate-900 p-1.5 rounded-lg shadow-sm">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-white" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Status History</h3>
+              </div>
+              <div className="space-y-3">
+                {statusHistory.map((entry, idx) => (
+                  <div key={idx} className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100 shadow-sm">
+                    <div className="flex-1 flex items-center gap-3 overflow-hidden">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${statusTheme[entry.oldStatus].bg} ${statusTheme[entry.oldStatus].color} truncate`}>
+                          {entry.oldStatus}
+                        </span>
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-slate-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                        </svg>
+                        <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${statusTheme[entry.newStatus].bg} ${statusTheme[entry.newStatus].color} truncate`}>
+                          {entry.newStatus}
+                        </span>
+                      </div>
+                      <div className="hidden sm:block h-4 w-px bg-slate-200"></div>
+                      <p className="hidden sm:block text-[10px] font-bold text-slate-400 uppercase tracking-tighter truncate">
+                        Changed by {entry.author}
+                      </p>
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider shrink-0">
+                      {new Date(entry.timestamp).toLocaleDateString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           
           <div className="border-t border-slate-100 pt-10">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
               <div className="flex items-center gap-3">
                 <h3 className="text-xl font-black text-slate-900 tracking-tight">Activity Timeline</h3>
                 <button 
-                  onClick={() => setShowFollowUp(true)}
+                  onClick={handleAddUpdateClick}
                   className="p-1.5 rounded-full bg-indigo-600 text-white hover:bg-indigo-700 transition-all shadow-sm hover:scale-110 active:scale-95"
                   title="Add timeline update"
                 >
@@ -367,7 +470,20 @@ export const IssueDetails: React.FC<IssueDetailsProps> = ({ issue, onClose, onAd
             Snap Photo
           </Button>
 
-          <Button variant="primary" className="flex-1 min-w-[160px] shadow-lg shadow-indigo-100" onClick={() => setShowFollowUp(true)}>
+          {issue.status !== IssueStatus.RESOLVED && (
+            <Button 
+              variant="primary" 
+              className="flex-1 min-w-[140px] bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-100"
+              onClick={() => setShowResolvePrompt(true)}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              Resolve
+            </Button>
+          )}
+
+          <Button variant="primary" className="flex-1 min-w-[160px] shadow-lg shadow-indigo-100" onClick={handleAddUpdateClick}>
             Full Report
           </Button>
         </div>
@@ -406,6 +522,59 @@ export const IssueDetails: React.FC<IssueDetailsProps> = ({ issue, onClose, onAd
                 <div className="mt-8 flex gap-3">
                   <Button variant="outline" className="flex-1 rounded-xl" onClick={() => setIsQuickSnapping(false)}>Discard</Button>
                   <Button variant="primary" className="flex-1 rounded-xl shadow-lg shadow-indigo-100" onClick={submitQuickUpdate}>Confirm</Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Resolve Issue Modal */}
+        {showResolvePrompt && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md">
+            <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-8 duration-300">
+              <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-emerald-600 text-white font-black uppercase tracking-widest text-xs">
+                <span className="flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  Resolve Issue
+                </span>
+                <button onClick={() => setShowResolvePrompt(false)} className="hover:text-emerald-100 transition-colors">
+                   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <div className="p-8">
+                <p className="text-sm text-slate-600 mb-6 font-medium">
+                  Please provide a brief comment about the resolution. This will be visible to the community.
+                </p>
+                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Resolution Comment</label>
+                <textarea 
+                  className="w-full p-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none shadow-sm transition-all font-medium text-sm h-32 resize-none"
+                  placeholder="e.g., The pothole has been filled and the road is now safe for traffic."
+                  value={resolveComment}
+                  onChange={(e) => setResolveComment(e.target.value)}
+                  autoFocus
+                />
+                <div className="mt-8 flex gap-3">
+                  <Button variant="outline" className="flex-1 rounded-xl" onClick={() => setShowResolvePrompt(false)}>Cancel</Button>
+                  <Button 
+                    variant="primary" 
+                    className="flex-1 rounded-xl bg-emerald-600 hover:bg-emerald-700 shadow-lg shadow-emerald-100" 
+                    onClick={() => {
+                      if (!resolveComment.trim()) return;
+                      onAddUpdate(issue.id, {
+                        comment: resolveComment,
+                        status: IssueStatus.RESOLVED
+                      });
+                      setShowResolvePrompt(false);
+                      setResolveComment('');
+                    }}
+                    disabled={!resolveComment.trim()}
+                  >
+                    Confirm Resolution
+                  </Button>
                 </div>
               </div>
             </div>

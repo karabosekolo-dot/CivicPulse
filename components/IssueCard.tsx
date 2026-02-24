@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { CivicIssue, IssueStatus, UrgencyLevel } from '../types';
+import { Share2, Check, ArrowUp } from 'lucide-react';
 
 interface IssueCardProps {
   issue: CivicIssue;
@@ -25,6 +26,10 @@ const urgencyColors = {
 
 export const IssueCard: React.FC<IssueCardProps> = ({ issue, onClick, onVote }) => {
   const [copied, setCopied] = useState(false);
+  
+  const displayMedia = issue.imageUrl 
+    ? { url: issue.imageUrl, type: 'image' } 
+    : (issue.media && issue.media.length > 0 ? issue.media[0] : null);
 
   const handleShare = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -58,19 +63,35 @@ export const IssueCard: React.FC<IssueCardProps> = ({ issue, onClick, onVote }) 
       className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow cursor-pointer flex flex-col h-full group"
       onClick={() => onClick(issue)}
     >
-      {issue.imageUrl && (
+      {displayMedia && (
         <div className="h-48 overflow-hidden relative">
-          <img src={issue.imageUrl} alt={issue.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+          {displayMedia.type === 'image' ? (
+            <img src={displayMedia.url} alt={issue.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+          ) : (
+            <div className="w-full h-full relative">
+              <video src={displayMedia.url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+              <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                <div className="bg-white/20 backdrop-blur-md p-2 rounded-full">
+                  <ArrowUp className="h-6 w-6 text-white rotate-90" /> {/* Using ArrowUp as a play icon placeholder or just Video icon */}
+                </div>
+              </div>
+            </div>
+          )}
           <div className="absolute top-3 right-3">
              <span className={`px-2.5 py-1 rounded-full text-xs font-semibold shadow-sm ${statusColors[issue.status]}`}>
               {issue.status}
             </span>
           </div>
+          {issue.media && issue.media.length > 1 && (
+            <div className="absolute bottom-3 left-3 bg-black/50 backdrop-blur-md text-white text-[10px] px-2 py-1 rounded-lg font-bold">
+              +{issue.media.length - 1} more
+            </div>
+          )}
         </div>
       )}
       
       <div className="p-5 flex-1 flex flex-col">
-        {!issue.imageUrl && (
+        {!displayMedia && (
           <div className="mb-3">
             <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${statusColors[issue.status]}`}>
               {issue.status}
@@ -95,35 +116,34 @@ export const IssueCard: React.FC<IssueCardProps> = ({ issue, onClick, onVote }) 
             <span className="text-xs font-medium text-slate-600">{issue.category}</span>
           </div>
           
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-2">
             <button 
-              className={`p-2 rounded-lg transition-all duration-200 flex items-center justify-center relative ${copied ? 'text-green-600 bg-green-50' : 'text-slate-400 hover:bg-slate-50 hover:text-indigo-600'}`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-200 relative ${copied ? 'text-emerald-600 bg-emerald-50 border border-emerald-100' : 'text-slate-500 bg-slate-50 hover:bg-indigo-50 hover:text-indigo-600 border border-slate-100 hover:border-indigo-100'}`}
               onClick={handleShare}
               title={copied ? "Link Copied!" : "Share report"}
             >
               {copied ? (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
+                <Check className="h-3.5 w-3.5" />
               ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                </svg>
+                <Share2 className="h-3.5 w-3.5" />
               )}
-              {copied && <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] px-2 py-1 rounded shadow-lg whitespace-nowrap">Copied!</span>}
+              <span>{copied ? 'Copied' : 'Share'}</span>
+              {copied && (
+                <span className="absolute -top-10 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-2 py-1 rounded-lg shadow-xl animate-in fade-in slide-in-from-bottom-2 duration-200 whitespace-nowrap">
+                  Link copied to clipboard!
+                </span>
+              )}
             </button>
 
             <button 
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-slate-50 text-indigo-600 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors border border-indigo-100"
               onClick={(e) => {
                 e.stopPropagation();
                 onVote(issue.id);
               }}
               title="Upvote report"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-              </svg>
+              <ArrowUp className="h-3.5 w-3.5" />
               <span className="font-bold">{issue.upvotes}</span>
             </button>
           </div>

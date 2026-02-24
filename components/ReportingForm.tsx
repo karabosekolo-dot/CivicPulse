@@ -1,8 +1,10 @@
 
 import React, { useState, useRef } from 'react';
-import { IssueCategory, GeoLocation, AnalysisResult } from '../types';
+import { IssueCategory, GeoLocation, AnalysisResult, MediaItem } from '../types';
 import { Button } from './Button';
 import { analyzeIssue } from '../services/geminiService';
+import { useAuth } from '../services/authContext';
+import { X, Image as ImageIcon, Video, Plus } from 'lucide-react';
 
 interface ReportingFormProps {
   onSubmit: (data: any) => void;
@@ -13,21 +15,30 @@ export const ReportingForm: React.FC<ReportingFormProps> = ({ onSubmit, onCancel
   const [step, setStep] = useState(1);
   const [description, setDescription] = useState('');
   const [title, setTitle] = useState('');
-  const [image, setImage] = useState<string | null>(null);
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [location, setLocation] = useState<GeoLocation | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [showManualRefinement, setShowManualRefinement] = useState(false);
+  const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImage(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files) {
+      Array.from(files).forEach((file: File) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const type = file.type.startsWith('video/') ? 'video' : 'image';
+          setMediaItems(prev => [...prev, { url: reader.result as string, type }]);
+        };
+        reader.readAsDataURL(file);
+      });
     }
+  };
+
+  const removeMedia = (index: number) => {
+    setMediaItems(prev => prev.filter((_, i) => i !== index));
   };
 
   const detectLocation = () => {
@@ -53,7 +64,9 @@ export const ReportingForm: React.FC<ReportingFormProps> = ({ onSubmit, onCancel
     if (step === 2) {
       setIsAnalyzing(true);
       try {
-        const result = await analyzeIssue(description, image || undefined);
+        // Use the first image for analysis if available
+        const firstImage = mediaItems.find(m => m.type === 'image')?.url;
+        const result = await analyzeIssue(description, firstImage);
         setAnalysis(result);
         setStep(3);
       } catch (err) {
@@ -70,11 +83,13 @@ export const ReportingForm: React.FC<ReportingFormProps> = ({ onSubmit, onCancel
     onSubmit({
       title: title || analysis?.summary || description.substring(0, 30) + "...",
       description,
-      imageUrl: image,
+      imageUrl: mediaItems.find(m => m.type === 'image')?.url,
+      media: mediaItems,
       location: location || { lat: 0, lng: 0, address: "Manual Entry" },
       category: analysis?.category || IssueCategory.OTHER,
       urgency: analysis?.urgency || 'Medium',
-      reporterName: "Guest Citizen",
+      reporterName: user?.name || "Guest Citizen",
+      recommendedAction: analysis?.recommendedAction
     });
   };
 
@@ -111,30 +126,47 @@ export const ReportingForm: React.FC<ReportingFormProps> = ({ onSubmit, onCancel
                 onChange={(e) => setDescription(e.target.value)}
               />
               <div className="mt-4">
-                <label className="block text-sm font-bold text-slate-700 mb-2">Add Photo Evidence (Optional)</label>
-                <div 
-                  className="border-2 border-dashed border-slate-200 rounded-xl p-4 text-center hover:border-indigo-400 transition-colors cursor-pointer"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  {image ? (
-                    <img src={image} alt="Preview" className="h-32 mx-auto rounded-lg object-cover" />
-                  ) : (
-                    <div className="flex flex-col items-center py-4 text-slate-400">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                      <span className="text-sm">Click to upload or take a photo</span>
+                <label className="block text-sm font-bold text-slate-700 mb-2">Media Evidence (Photos/Videos)</label>
+                <div className="grid grid-cols-3 gap-3 mb-3">
+                  {mediaItems.map((item, index) => (
+                    <div key={index} className="relative aspect-square rounded-xl overflow-hidden border border-slate-200 group">
+                      {item.type === 'image' ? (
+                        <img src={item.url} alt="Preview" className="w-full h-full object-cover" />
+                      ) : (
+                        <video src={item.url} className="w-full h-full object-cover" />
+                      )}
+                      <button 
+                        onClick={() => removeMedia(index)}
+                        className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                      {item.type === 'video' && (
+                        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                          <Video className="h-6 w-6 text-white drop-shadow-md" />
+                        </div>
+                      )}
                     </div>
+                  ))}
+                  {mediaItems.length < 6 && (
+                    <button 
+                      onClick={() => fileInputRef.current?.click()}
+                      className="aspect-square border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:border-indigo-400 hover:text-indigo-400 transition-all"
+                    >
+                      <Plus className="h-6 w-6 mb-1" />
+                      <span className="text-[10px] font-bold uppercase">Add</span>
+                    </button>
                   )}
-                  <input 
-                    type="file" 
-                    accept="image/*" 
-                    capture="environment" 
-                    ref={fileInputRef} 
-                    className="hidden" 
-                    onChange={handleImageChange}
-                  />
                 </div>
+                <input 
+                  type="file" 
+                  multiple
+                  accept="image/*,video/*" 
+                  ref={fileInputRef} 
+                  className="hidden" 
+                  onChange={handleFileChange}
+                />
+                <p className="text-[10px] text-slate-400 font-medium">Upload up to 6 photos or videos to provide context.</p>
               </div>
             </div>
           )}
@@ -160,17 +192,32 @@ export const ReportingForm: React.FC<ReportingFormProps> = ({ onSubmit, onCancel
                   <div className="w-full border-t border-slate-200"></div>
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-white px-2 text-slate-500">Or enter manually</span>
+                  <span className="bg-white px-2 text-slate-500">Or refine location</span>
                 </div>
               </div>
 
-              <input 
-                type="text" 
-                className="mt-4 w-full p-3 border border-slate-300 rounded-xl outline-none" 
-                placeholder="Street address or landmark"
-                value={location?.address || ''}
-                onChange={(e) => setLocation({ lat: 0, lng: 0, address: e.target.value })}
-              />
+              {!showManualRefinement && !location?.address ? (
+                <button 
+                  type="button"
+                  onClick={() => setShowManualRefinement(true)}
+                  className="mt-4 w-full py-3 px-4 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center justify-center gap-2"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  Enter Specific Details (Cross-streets, Landmarks)
+                </button>
+              ) : (
+                <div className="mt-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 ml-1">Specific Location Details</label>
+                  <textarea 
+                    className="w-full p-3 border border-slate-300 rounded-xl outline-none text-sm h-24 focus:ring-2 focus:ring-indigo-500" 
+                    placeholder="e.g., Near the intersection of 5th and Main, opposite the public library..."
+                    value={location?.address || ''}
+                    onChange={(e) => setLocation(prev => ({ ...(prev || { lat: 0, lng: 0 }), address: e.target.value }))}
+                  />
+                </div>
+              )}
             </div>
           )}
 
@@ -214,6 +261,12 @@ export const ReportingForm: React.FC<ReportingFormProps> = ({ onSubmit, onCancel
                     {analysis.tags.map(tag => (
                       <span key={tag} className="px-2 py-1 bg-slate-100 text-slate-600 text-xs rounded-lg">#{tag}</span>
                     ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 mb-1">AI Recommended Action</label>
+                  <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-xl text-sm text-emerald-800 italic font-medium">
+                    {analysis.recommendedAction}
                   </div>
                 </div>
               </div>

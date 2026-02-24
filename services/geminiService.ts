@@ -7,7 +7,7 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
 export const analyzeIssue = async (description: string, imageBase64?: string): Promise<AnalysisResult> => {
   const model = 'gemini-3-flash-preview';
   
-  const contents: any[] = [{ text: `Analyze this civic problem report: "${description}"` }];
+  const contents: any[] = [{ text: `Analyze this civic problem report: "${description}". Provide a detailed analysis, including potential solutions or recommended actions for the community or local authorities.` }];
   
   if (imageBase64) {
     contents.push({
@@ -44,9 +44,13 @@ export const analyzeIssue = async (description: string, imageBase64?: string): P
             type: Type.ARRAY,
             items: { type: Type.STRING },
             description: 'Relevant tags for indexing.'
+          },
+          recommendedAction: {
+            type: Type.STRING,
+            description: 'A recommended action or potential solution for the issue.'
           }
         },
-        required: ["category", "urgency", "summary", "tags"]
+        required: ["category", "urgency", "summary", "tags", "recommendedAction"]
       }
     }
   });
@@ -60,7 +64,8 @@ export const analyzeIssue = async (description: string, imageBase64?: string): P
       category: IssueCategory.OTHER,
       urgency: UrgencyLevel.MEDIUM,
       summary: description.substring(0, 100),
-      tags: []
+      tags: [],
+      recommendedAction: "No specific action recommended at this time."
     };
   }
 };

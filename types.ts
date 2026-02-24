@@ -30,6 +30,11 @@ export interface GeoLocation {
   address?: string;
 }
 
+export interface MediaItem {
+  url: string;
+  type: 'image' | 'video';
+}
+
 export interface CivicIssue {
   id: string;
   title: string;
@@ -38,11 +43,14 @@ export interface CivicIssue {
   status: IssueStatus;
   urgency: UrgencyLevel;
   location: GeoLocation;
-  imageUrl?: string;
+  imageUrl?: string; // Keeping for backward compatibility if needed, but will prefer media
+  media?: MediaItem[];
   reporterName: string;
+  reporterId?: string;
   timestamp: string;
   upvotes: number;
   updates: IssueUpdate[];
+  recommendedAction?: string;
 }
 
 export interface IssueUpdate {
@@ -51,7 +59,9 @@ export interface IssueUpdate {
   comment: string;
   timestamp: string;
   author: string;
-  imageUrl?: string;
+  authorId?: string;
+  imageUrl?: string; // Keeping for backward compatibility
+  media?: MediaItem[];
 }
 
 export interface AnalysisResult {
@@ -59,4 +69,12 @@ export interface AnalysisResult {
   urgency: UrgencyLevel;
   summary: string;
   tags: string[];
+  recommendedAction: string;
+}
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  avatarUrl?: string;
 }
