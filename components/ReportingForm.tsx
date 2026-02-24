@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { IssueCategory, GeoLocation, AnalysisResult, MediaItem } from '../types';
+import { IssueCategory, GeoLocation, AnalysisResult, MediaItem, UrgencyLevel } from '../types';
 import { Button } from './Button';
 import { analyzeIssue } from '../services/geminiService';
 import { useAuth } from '../services/authContext';
@@ -19,6 +19,7 @@ export const ReportingForm: React.FC<ReportingFormProps> = ({ onSubmit, onCancel
   const [location, setLocation] = useState<GeoLocation | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [showManualRefinement, setShowManualRefinement] = useState(false);
   const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -60,7 +61,13 @@ export const ReportingForm: React.FC<ReportingFormProps> = ({ onSubmit, onCancel
 
   const handleNext = async () => {
     if (step === 1 && !description) return;
+    if (step === 2 && !location?.address) {
+      setError("Please provide a location before continuing.");
+      return;
+    }
     
+    setError(null);
+
     if (step === 2) {
       setIsAnalyzing(true);
       try {
@@ -71,6 +78,16 @@ export const ReportingForm: React.FC<ReportingFormProps> = ({ onSubmit, onCancel
         setStep(3);
       } catch (err) {
         console.error(err);
+        setError("AI analysis failed, but you can still submit your report manually.");
+        // Fallback analysis result so they can still proceed
+        setAnalysis({
+          category: IssueCategory.OTHER,
+          urgency: UrgencyLevel.MEDIUM,
+          summary: description.substring(0, 50) + "...",
+          tags: [],
+          recommendedAction: "Please wait for manual review by community moderators."
+        });
+        setStep(3);
       } finally {
         setIsAnalyzing(false);
       }
@@ -115,6 +132,12 @@ export const ReportingForm: React.FC<ReportingFormProps> = ({ onSubmit, onCancel
               />
             ))}
           </div>
+
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-100 text-red-600 text-xs font-bold rounded-xl animate-in fade-in slide-in-from-top-2">
+              {error}
+            </div>
+          )}
 
           {step === 1 && (
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-300">
@@ -283,9 +306,9 @@ export const ReportingForm: React.FC<ReportingFormProps> = ({ onSubmit, onCancel
               className="flex-1" 
               isLoading={isAnalyzing} 
               onClick={handleNext}
-              disabled={step === 1 && !description}
+              disabled={(step === 1 && !description) || (step === 2 && !location?.address)}
             >
-              Continue
+              {isAnalyzing ? 'Analyzing Issue...' : 'Continue'}
             </Button>
           ) : (
             <Button className="flex-1" onClick={handleFinalSubmit}>Submit Report</Button>

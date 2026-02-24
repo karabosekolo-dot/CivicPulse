@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { CivicIssue, IssueStatus, UrgencyLevel } from '../types';
-import { Share2, Check, ArrowUp } from 'lucide-react';
+import { Share2, Check, Heart, MessageCircle, Play } from 'lucide-react';
 
 interface IssueCardProps {
   issue: CivicIssue;
@@ -72,7 +72,7 @@ export const IssueCard: React.FC<IssueCardProps> = ({ issue, onClick, onVote }) 
               <video src={displayMedia.url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
               <div className="absolute inset-0 flex items-center justify-center bg-black/20">
                 <div className="bg-white/20 backdrop-blur-md p-2 rounded-full">
-                  <ArrowUp className="h-6 w-6 text-white rotate-90" /> {/* Using ArrowUp as a play icon placeholder or just Video icon */}
+                  <Play className="h-6 w-6 text-white fill-current" />
                 </div>
               </div>
             </div>
@@ -117,6 +117,31 @@ export const IssueCard: React.FC<IssueCardProps> = ({ issue, onClick, onVote }) 
           </div>
           
           <div className="flex items-center gap-2">
+            <div className="flex items-center gap-4 mr-2">
+              <button 
+                className="flex items-center gap-1 text-slate-400 hover:text-red-500 transition-colors group/heart"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onVote(issue.id);
+                }}
+                title="Like report"
+              >
+                <Heart className={`h-4 w-4 ${issue.upvotes > 0 ? 'fill-red-500 text-red-500' : ''} group-hover/heart:fill-red-500`} />
+                <span className="text-xs font-bold">{issue.upvotes}</span>
+              </button>
+              <button 
+                className="flex items-center gap-1 text-slate-400 hover:text-indigo-600 transition-colors group/comment"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onClick(issue);
+                }}
+                title="View comments"
+              >
+                <MessageCircle className="h-4 w-4 group-hover/comment:fill-indigo-100" />
+                <span className="text-xs font-bold">{issue.updates.length}</span>
+              </button>
+            </div>
+
             <button 
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all duration-200 relative ${copied ? 'text-emerald-600 bg-emerald-50 border border-emerald-100' : 'text-slate-500 bg-slate-50 hover:bg-indigo-50 hover:text-indigo-600 border border-slate-100 hover:border-indigo-100'}`}
               onClick={handleShare}
@@ -133,18 +158,6 @@ export const IssueCard: React.FC<IssueCardProps> = ({ issue, onClick, onVote }) 
                   Link copied to clipboard!
                 </span>
               )}
-            </button>
-
-            <button 
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors border border-indigo-100"
-              onClick={(e) => {
-                e.stopPropagation();
-                onVote(issue.id);
-              }}
-              title="Upvote report"
-            >
-              <ArrowUp className="h-3.5 w-3.5" />
-              <span className="font-bold">{issue.upvotes}</span>
             </button>
           </div>
         </div>

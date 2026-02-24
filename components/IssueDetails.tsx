@@ -4,6 +4,7 @@ import { CivicIssue, IssueStatus, IssueUpdate } from '../types';
 import { Button } from './Button';
 import { FollowUpForm } from './FollowUpForm';
 import { useAuth } from '../services/authContext';
+import { Heart, MessageCircle, Share2, X } from 'lucide-react';
 
 interface IssueDetailsProps {
   issue: CivicIssue;
@@ -80,7 +81,8 @@ export const IssueDetails: React.FC<IssueDetailsProps> = ({ issue, onClose, onAd
   const [isQuickSnapping, setIsQuickSnapping] = useState(false);
   const [showResolvePrompt, setShowResolvePrompt] = useState(false);
   const [resolveComment, setResolveComment] = useState('');
-  const { isAuthenticated } = useAuth();
+  const [directComment, setDirectComment] = useState('');
+  const { isAuthenticated, user } = useAuth();
   const quickFileInputRef = useRef<HTMLInputElement>(null);
 
   const filteredAndSortedUpdates = useMemo(() => {
@@ -119,7 +121,7 @@ export const IssueDetails: React.FC<IssueDetailsProps> = ({ issue, onClose, onAd
       }
     });
 
-    return history.reverse();
+    return history;
   }, [issue.updates]);
 
   const handleQuickSnap = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -152,6 +154,21 @@ export const IssueDetails: React.FC<IssueDetailsProps> = ({ issue, onClose, onAd
       return;
     }
     setShowFollowUp(true);
+  };
+
+  const handleDirectCommentSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAuthenticated) {
+      alert("Please sign in to post a comment.");
+      return;
+    }
+    if (!directComment.trim()) return;
+
+    onAddUpdate(issue.id, {
+      comment: directComment,
+      status: issue.status
+    });
+    setDirectComment('');
   };
 
   const handleShare = async () => {
@@ -208,7 +225,20 @@ export const IssueDetails: React.FC<IssueDetailsProps> = ({ issue, onClose, onAd
             </span>
           </div>
           
-          <h1 className="text-2xl font-black text-slate-900 mb-4 leading-tight">{issue.title}</h1>
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-black text-slate-900 leading-tight">{issue.title}</h1>
+            <div className="flex items-center gap-4 px-4 py-2 bg-slate-50 rounded-2xl border border-slate-100">
+              <div className="flex items-center gap-1.5 text-slate-600">
+                <Heart className="h-4 w-4 text-red-500 fill-red-500" />
+                <span className="text-sm font-bold">{issue.upvotes}</span>
+              </div>
+              <div className="w-px h-4 bg-slate-200"></div>
+              <div className="flex items-center gap-1.5 text-slate-600">
+                <MessageCircle className="h-4 w-4 text-indigo-500" />
+                <span className="text-sm font-bold">{issue.updates.length}</span>
+              </div>
+            </div>
+          </div>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
             <div>
@@ -277,29 +307,33 @@ export const IssueDetails: React.FC<IssueDetailsProps> = ({ issue, onClose, onAd
                 </div>
                 <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Status History</h3>
               </div>
-              <div className="space-y-3">
+              <div className="space-y-4 relative before:absolute before:left-[19px] before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-100">
                 {statusHistory.map((entry, idx) => (
-                  <div key={idx} className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100 shadow-sm">
-                    <div className="flex-1 flex items-center gap-3 overflow-hidden">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${statusTheme[entry.oldStatus].bg} ${statusTheme[entry.oldStatus].color} truncate`}>
-                          {entry.oldStatus}
-                        </span>
-                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-slate-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                        </svg>
-                        <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${statusTheme[entry.newStatus].bg} ${statusTheme[entry.newStatus].color} truncate`}>
-                          {entry.newStatus}
+                  <div key={idx} className="relative flex items-start gap-4 pl-10 group">
+                    <div className="absolute left-0 top-1.5 w-10 h-10 bg-white border-2 border-slate-100 rounded-full flex items-center justify-center z-10 group-hover:border-indigo-200 transition-colors">
+                      <div className={`w-2 h-2 rounded-full ${statusTheme[entry.newStatus].bg.replace('bg-', 'bg-').replace('100', '500')}`} />
+                    </div>
+                    <div className="flex-1 bg-slate-50 rounded-2xl p-4 border border-slate-100 shadow-sm group-hover:shadow-md transition-all">
+                      <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${statusTheme[entry.oldStatus].bg} ${statusTheme[entry.oldStatus].color}`}>
+                            {entry.oldStatus}
+                          </span>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                          </svg>
+                          <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md ${statusTheme[entry.newStatus].bg} ${statusTheme[entry.newStatus].color}`}>
+                            {entry.newStatus}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                          {new Date(entry.timestamp).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
                         </span>
                       </div>
-                      <div className="hidden sm:block h-4 w-px bg-slate-200"></div>
-                      <p className="hidden sm:block text-[10px] font-bold text-slate-400 uppercase tracking-tighter truncate">
-                        Changed by {entry.author}
+                      <p className="text-xs font-bold text-slate-600 uppercase tracking-tight">
+                        Update by <span className="text-indigo-600">{entry.author}</span>
                       </p>
                     </div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider shrink-0">
-                      {new Date(entry.timestamp).toLocaleDateString()}
-                    </span>
                   </div>
                 ))}
               </div>
@@ -348,6 +382,36 @@ export const IssueDetails: React.FC<IssueDetailsProps> = ({ issue, onClose, onAd
                   </select>
                 </div>
               </div>
+            </div>
+
+            {/* Direct Comment Input */}
+            <div className="mb-10 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+              <form onSubmit={handleDirectCommentSubmit} className="flex gap-3">
+                <div className="flex-1">
+                  <textarea 
+                    className="w-full p-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm resize-none h-20 transition-all"
+                    placeholder={isAuthenticated ? "Write a comment or update..." : "Sign in to post a comment"}
+                    value={directComment}
+                    onChange={(e) => setDirectComment(e.target.value)}
+                    disabled={!isAuthenticated}
+                  />
+                </div>
+                <div className="flex flex-col justify-end">
+                  <Button 
+                    type="submit" 
+                    variant="primary" 
+                    className="h-10 px-4" 
+                    disabled={!isAuthenticated || !directComment.trim()}
+                  >
+                    Post
+                  </Button>
+                </div>
+              </form>
+              {!isAuthenticated && (
+                <p className="mt-2 text-[10px] text-slate-400 font-bold uppercase tracking-wider text-center">
+                  Community participation requires an active account
+                </p>
+              )}
             </div>
 
             <div className="relative pl-2">

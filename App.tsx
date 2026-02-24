@@ -9,11 +9,12 @@ import {
 } from './types';
 import { IssueCard } from './components/IssueCard';
 import { ReportingForm } from './components/ReportingForm';
+import { MapView } from './components/MapView';
 import { IssueDetails } from './components/IssueDetails';
 import { Button } from './components/Button';
 import { AuthProvider, useAuth } from './services/authContext';
 import { AuthModal } from './components/AuthModal';
-import { LogOut, User as UserIcon, LogIn } from 'lucide-react';
+import { LogOut, User as UserIcon, LogIn, LayoutGrid, Map as MapIcon } from 'lucide-react';
 
 const INITIAL_ISSUES: CivicIssue[] = [
   {
@@ -81,6 +82,7 @@ const INITIAL_ISSUES: CivicIssue[] = [
 const AppContent: React.FC = () => {
   const [issues, setIssues] = useState<CivicIssue[]>(INITIAL_ISSUES);
   const [isReporting, setIsReporting] = useState(false);
+  const [viewMode, setViewMode] = useState<'grid' | 'map'>('grid');
   const [selectedIssueId, setSelectedIssueId] = useState<string | null>(null);
   const [filter, setFilter] = useState<IssueCategory | 'All' | 'My Reports'>('All');
   const [searchTerm, setSearchTerm] = useState('');
@@ -288,26 +290,51 @@ const AppContent: React.FC = () => {
             </div>
           </aside>
 
-          {/* Issue Grid */}
+          {/* Issue Grid or Map */}
           <div className="flex-1">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-2xl font-black text-slate-900">
-                {filter === 'All' ? 'Community Feed' : filter === 'My Reports' ? 'My Reported Issues' : filter}
-              </h2>
+              <div className="flex items-center gap-4">
+                <h2 className="text-2xl font-black text-slate-900">
+                  {filter === 'All' ? 'Community Feed' : filter === 'My Reports' ? 'My Reported Issues' : filter}
+                </h2>
+                <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200">
+                  <button 
+                    onClick={() => setViewMode('grid')}
+                    className={`p-1.5 rounded-lg transition-all ${viewMode === 'grid' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                    title="Grid View"
+                  >
+                    <LayoutGrid className="h-4 w-4" />
+                  </button>
+                  <button 
+                    onClick={() => setViewMode('map')}
+                    className={`p-1.5 rounded-lg transition-all ${viewMode === 'map' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                    title="Map View"
+                  >
+                    <MapIcon className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
               <span className="text-sm text-slate-500 font-medium">Showing {filteredIssues.length} reports</span>
             </div>
 
             {filteredIssues.length > 0 ? (
-              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-                {filteredIssues.map(issue => (
-                  <IssueCard 
-                    key={issue.id} 
-                    issue={issue} 
-                    onClick={(i) => setSelectedIssueId(i.id)}
-                    onVote={handleVote}
-                  />
-                ))}
-              </div>
+              viewMode === 'grid' ? (
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {filteredIssues.map(issue => (
+                    <IssueCard 
+                      key={issue.id} 
+                      issue={issue} 
+                      onClick={(i) => setSelectedIssueId(i.id)}
+                      onVote={handleVote}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <MapView 
+                  issues={filteredIssues} 
+                  onIssueClick={(i) => setSelectedIssueId(i.id)} 
+                />
+              )
             ) : (
               <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-20 text-center">
                 <div className="bg-slate-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
